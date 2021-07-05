@@ -24,3 +24,10 @@ function run_simulation!(runner::Runner, target=tempname())
     return _run_simulation!(runner, target)
 end
 
+
+function run_simulation!(func::Function, runner::Runner)
+    target, shell_output = run_simulation!(runner)
+    ret = func(target, shell_output)
+    rm(target, recursive=true)
+    return ret
+end

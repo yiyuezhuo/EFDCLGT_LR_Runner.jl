@@ -16,6 +16,8 @@ end
 
 Collector(runner::Runner) = Collector(runner, Type[]) # This can be used to verify context logic.
 
+parent(c::Collector) = c.runner
+
 create_simulation(collector::Collector, target=tempname()) = create_simulation(collector.runner, target)
 _run_simulation!(collector::Collector, target=tempname()) = _run_simulation!(collector.runner, target)
 
@@ -30,7 +32,7 @@ Base.showerror(io::IO, e::ModelRunningFailed) = print(io, "Model running seems f
 function parse_shell_output(full_output::String)
     slice = findfirst(shell_end_anchor, full_output)
     if isnothing(slice)
-        raise(ModelRunningFailed(full_output))
+        raise(ModelRunningFailed(full_output[end-100:end]))
     end
 
     word_list = split(full_output[slice[end] + 1:end])

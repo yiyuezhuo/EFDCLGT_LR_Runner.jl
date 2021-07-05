@@ -6,7 +6,7 @@ export run_simulation!, Collector
 
 using EFDCLGT_LR_Files
 using EFDCLGT_LR_Files: Runner, RunnerFunc, RunnerStateful, AbstractFile, name
-import EFDCLGT_LR_Files: create_simulation
+import EFDCLGT_LR_Files: create_simulation, parent
 
 include("runner.jl")
 include("collector.jl")
