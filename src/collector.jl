@@ -21,48 +21,14 @@ parent(c::Collector) = c.runner
 create_simulation(collector::Collector, target=tempname()) = create_simulation(collector.runner, target)
 _run_simulation!(collector::Collector, target=tempname()) = _run_simulation!(collector.runner, target)
 
-const shell_end_anchor = "TIMING INFORMATION IN SECONDS"
-
-struct ModelRunningFailed
-    msg::String
-end
-
-Base.showerror(io::IO, e::ModelRunningFailed) = print(io, "Model running seems failed:", e.msg, "!")
-
-function parse_shell_output(full_output::String)
-    slice = findfirst(shell_end_anchor, full_output)
-    if isnothing(slice)
-        raise(ModelRunningFailed(full_output[end-100:end]))
-    end
-
-    word_list = split(full_output[slice[end] + 1:end])
-    rd = Dict{String, Float64}()
-    stack = String[]
-    it = Iterators.Stateful(word_list)
-
-    for word in it
-        if word == "="
-            key = join(stack, " ")
-            empty!(stack)
-            value = popfirst!(it)
-            rd[key] = Meta.parse(value)
-        else
-            push!(stack, word)
-        end
-    end
-    return rd
-end
-
-
 function run_simulation!(collector::Collector, target=tempname())
-    _, shell_output = run_simulation!(collector.runner, target)
-    stats_running = parse_shell_output(shell_output) # this may raise error
-    merge!(collector.stats_running, stats_running)
+    res = run_simulation!(collector.runner, target)
+    merge!(collector.stats_running, res.stats_running)
     for ftype in collector.collect_vec
         p = joinpath(target, name(ftype))
         collector.result_map[ftype] = load(p, ftype)
     end
-    return target, shell_output
+    return res
 end
 
 function Base.show(io::IO, c::Collector)

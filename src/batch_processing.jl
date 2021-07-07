@@ -1,71 +1,70 @@
 
-function worker(worker_idx, ch_in, ch_out, max_quota)
+function worker(worker_idx, ch_in, ch_out)
+    # @debug "worker $worker_idx: started"
     for (runner_idx, arg) in ch_in
-        for quota in max_quota:-1:0
-            try
-                @debug runner_idx arg
-                out = run_simulation!(arg...)
-                put!(ch_out, (worker_idx, runner_idx, nothing, out))
-                break
-            catch err
-                @debug err
-                if err isa ModelRunningFailed
-                    @warn "Potential fixable ModelRunningFailed: worker: $worker_idx, ruuner: $runner_idx, quota: $quota/$max_quota."
-                    if used_quota > 0
-                        continue
-                    end
-                end
-                put!(ch_out, (worker_idx, runner_idx, err, nothing))
-                rethrow(err)
-            end
+        # @debug "worker $worker_idx: start to process job $runner_idx $arg"
+        try
+            res = run_simulation!(arg...)
+            put!(ch_out, (worker_idx, runner_idx, nothing, res))
+            break
+        catch err
+            @debug "worker $worker_idx: try to put err $err"
+            put!(ch_out, (worker_idx, runner_idx, err, nothing))
+            # @debug "worker $worker_idx: put err $err"
+            rethrow(err)
         end
     end
 end
 
 function run_simulation!(runner_vec::AbstractVector{T}, 
                 target_vec::AbstractVector{String}=[tempname() for _ in 1:length(runner_vec)];
-                batch_size=min(length(Sys.cpu_info()) ÷ 2, length(runner_vec)),
-                max_quota=2) where T
+                batch_size=min(length(Sys.cpu_info()) ÷ 2, length(runner_vec))) where T
     # It's expected that some parsing errors, which denote model running failure, will be raised.
     # length(Sys.cpu_info) ÷ 2 assumes 2x hyper thread to leverage all the physic CPU cores.
 
     ch_in = Channel{Tuple{Int, Tuple{T, String}}}()
-    ch_out = Channel{Tuple{Int, Int, Union{Nothing, Exception}, Tuple{String, String}}}()
+    ch_out = Channel{Tuple{Int, Int, Union{Nothing, Exception}, Union{Nothing, SimulationResult}}}()
 
-    @debug "Batch processing: job->$(length(runner_vec)), batch_size=$batch_size, max_quota=$max_quota"
+    @debug "Batch processing: jobs->$(length(runner_vec)), batch_size=$batch_size"
 
     @async for (runner_idx, arg) in enumerate(zip(runner_vec, target_vec))
+        # @debug "Try to put job $runner_idx"
         put!(ch_in, (runner_idx, arg))
+        # @debug "Put job $runner_idx"
     end
     # TODO: close ch_in?
 
+    task_vec = Task[]
+
     for worker_idx in 1:batch_size
-        @async worker(worker_idx, ch_in, ch_out, max_quota)
+        push!(task_vec, @async worker(worker_idx, ch_in, ch_out))
     end
 
     n = length(runner_vec)
 
     # target_vec = Vector{Tuple{String, String}}(undef, n)
-    shell_out_vec = Vector{String}(undef, n)
+    res_vec = Vector{SimulationResult}(undef, n)
 
-    for (solved_idx, (worker_idx, runner_idx, err, (_, shell_out))) in enumerate(Iterators.take(ch_out, n))
+    # @debug "Batch_processing: yield to collect."
+
+    for (solved_idx, (worker_idx, runner_idx, err, res)) in enumerate(Iterators.take(ch_out, n))
         if !isnothing(err)
-            rethrow(err)
+            throw(err)
         end
-        @debug "Solved $worker_idx $runner_idx, $solved_idx/$n"
-        shell_out_vec[runner_idx] = shell_out
+        @debug "Solved worker: $worker_idx, job: $runner_idx, $solved_idx/$n"
+        res_vec[runner_idx] = res
     end
 
     # TODO: close ch_out?
 
-    return target_vec, shell_out_vec
+    return res_vec
 end
 
 function run_simulation!(func::Function, runner_vec::AbstractVector{<:Runner}; kwargs...)
-    target_vec, shell_out_vec = run_simulation!(runner_vec)
-    ret = func(target_vec, shell_out_vec)
-    for target in target_vec
-        rm(target, recursive=true)
+    res_vec = run_simulation!(runner_vec)
+    ret = func(res_vec)
+    for res in res_vec
+        rm(res.dir_completed, recursive=true)
     end
     return ret
 end
