@@ -41,8 +41,24 @@ struct SimulationResult
     stats_running::Dict{String, Float64}
 end
 
+function cleanup(r::SimulationResult)
+    rm(r.dir_completed, recursive=true)
+end
+
+function Base.show(io::IO, sr::SimulationResult)
+    elapsed_time = sr.stats_running["ELLAPSED TIME"] # the original program wrongly spelled the word.
+    print(io, "SimulationResult(dir_completed=$(sr.dir_completed), length(output)=$(length(sr.output)), length(stats_running)=$(length(sr.stats_running)), elapsed_time->$elapsed_time)")
+end
+
 """
-Run without creating environment
+Run without creating environment.
+
+As the model executable may charge a lot of virtual memory (in my case, 30Mb physic memory vs 1.8Gb virtual memory),
+there're three possible result:
+
+* The program even failed to start as virtual memory is not enough, at this time, you can't even run the executable manually.
+* The program started but for some reason failed to read input files, then it is catched by ModelRunningFailed. The function will try to restart it until MAX_QUOTA is reached. 
+* The program started and exited with "regular" output, so the disk files it leaves and shell output is valid and can be fetched.
 """
 function _run_simulation!(template::SimulationTemplate, target)
     exe_p = get_exe_path(template)
@@ -72,8 +88,12 @@ _run_simulation!(restarter::Restarter, target) = _run_simulation!(restarter.repl
 # run_simulation(runner::RunnerFunc, target) = run_simulation!(runner, target)
 
 """
-Create a new environment and run simulation, return created dir and shell_output.
+Create a new environment and run simulation, return a SimulationResult.
 Results on disk may be loaded into runner's field.
+
+target is expected to be "empty", and a environment will be created in it. 
+To run simulation only, refer to `_run_simulation!`. As the `_` shows, 
+this way is not recommended as it will not save the resumable state. 
 """
 function run_simulation!(runner::Runner, target=tempname())
     create_simulation(runner, target)
@@ -82,9 +102,9 @@ end
 
 
 function run_simulation!(func::Function, runner::Runner)
-    target, shell_output = run_simulation!(runner)
-    ret = func(target, shell_output)
-    rm(target, recursive=true)
+    res = run_simulation!(runner)
+    ret = func(res)
+    cleanup(res)
     return ret
 end
 

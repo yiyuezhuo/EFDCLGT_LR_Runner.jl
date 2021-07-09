@@ -11,7 +11,7 @@ default_logger = global_logger()
 
 global_logger(debug_logger)
 
-template = SimulationTemplate(ENV["WATER_ROOT"])
+template = SimulationTemplate(ENV["WATER_ROOT"], Day, Hour)
 
 @testset "EFDCLGT_LR_Runner" begin
     replacer = Replacer(template, [efdc_inp, wqini_inp])
@@ -42,7 +42,8 @@ template = SimulationTemplate(ENV["WATER_ROOT"])
             return 2
         end
 
-        @time @test fetch(task1) == 1 && fetch(task2) == 2
+        @time @test fetch(task1) == 1
+        @time @test fetch(task2) == 2
         
         #=
         runner_vec = [replacer, restarter, collector1, collector2]

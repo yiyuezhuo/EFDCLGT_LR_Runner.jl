@@ -1,4 +1,32 @@
 
+
+
+function run_simulation!(runner_vec::AbstractVector{<:Runner};
+                        ntasks=min(length(Sys.cpu_info()) ÷ 2, length(runner_vec)),
+                        progress=false)
+    # It's expected that some parsing errors, which denote model running failure, will be raised.
+    # length(Sys.cpu_info) ÷ 2 assumes 2x hyper thread to leverage all the physic CPU cores.
+    if !progress
+        return asyncmap(run_simulation!, runner_vec, ntasks=ntasks)
+    end
+    prog = ProgressAsync(length(runner_vec))
+    return asyncmap(runner_vec, ntasks=ntasks) do runner
+        ret = run_simulation!(runner)
+        step!(prog)
+        return ret
+    end
+end
+
+function run_simulation!(func::Function, runner_vec::AbstractVector{<:Runner}; progress=false, kwargs...)
+    res_vec = run_simulation!(runner_vec; progress=progress, kwargs...)
+    ret = func(res_vec)
+    for res in res_vec # TODO: add a @async here?
+        cleanup(res)
+    end
+    return ret
+end
+
+#=
 function worker(worker_idx, ch_in, ch_out)
     # @debug "worker $worker_idx: started"
     for (runner_idx, arg) in ch_in
@@ -16,23 +44,17 @@ function worker(worker_idx, ch_in, ch_out)
     end
 end
 
-function run_simulation!(runner_vec::AbstractVector{T}, 
-                target_vec::AbstractVector{String}=[tempname() for _ in 1:length(runner_vec)];
-                batch_size=min(length(Sys.cpu_info()) ÷ 2, length(runner_vec))) where T
-    # It's expected that some parsing errors, which denote model running failure, will be raised.
-    # length(Sys.cpu_info) ÷ 2 assumes 2x hyper thread to leverage all the physic CPU cores.
+function run_simulation!(runner_channel::Channel{T}; batch_size=length(Sys.cpu_info()) ÷ 2) where T
+
+    @debug "Batch processing: batch_size=$batch_size"
 
     ch_in = Channel{Tuple{Int, Tuple{T, String}}}()
     ch_out = Channel{Tuple{Int, Int, Union{Nothing, Exception}, Union{Nothing, SimulationResult}}}()
 
-    @debug "Batch processing: jobs->$(length(runner_vec)), batch_size=$batch_size"
-
-    @async for (runner_idx, arg) in enumerate(zip(runner_vec, target_vec))
-        # @debug "Try to put job $runner_idx"
-        put!(ch_in, (runner_idx, arg))
-        # @debug "Put job $runner_idx"
+    @async for (runner_idx, runner) in enumerate(runner_channel)
+        target = tempname()
+        put!(ch_in, (runner_idx, (runner, target)))
     end
-    # TODO: close ch_in?
 
     task_vec = Task[]
 
@@ -60,11 +82,21 @@ function run_simulation!(runner_vec::AbstractVector{T},
     return res_vec
 end
 
-function run_simulation!(func::Function, runner_vec::AbstractVector{<:Runner}; kwargs...)
-    res_vec = run_simulation!(runner_vec)
+function run_simulation!(runner_vec::AbstractVector{T};
+                batch_size=min(length(Sys.cpu_info()) ÷ 2, length(runner_vec))) where T
+    # It's expected that some parsing errors, which denote model running failure, will be raised.
+    # length(Sys.cpu_info) ÷ 2 assumes 2x hyper thread to leverage all the physic CPU cores.
+
+    runner_channel = Channel{T}()
+    return run_simulation!(runner_channel, batch_size=batch_size)
+end
+
+function run_simulation!(func::Function, runner_input::Union{AbstractVector, Channel}; kwargs...)
+    res_vec = run_simulation!(runner_input; kwargs...)
     ret = func(res_vec)
     for res in res_vec
         rm(res.dir_completed, recursive=true)
     end
     return ret
 end
+=#
