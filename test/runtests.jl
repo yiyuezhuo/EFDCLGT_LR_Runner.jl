@@ -2,13 +2,14 @@ using Base: global_logger
 
 using Test
 using EFDCLGT_LR_Files
+using EFDCLGT_LR_Files: name
 using EFDCLGT_LR_Runner
 using Logging
 using Dates
+using Statistics
 
 debug_logger = SimpleLogger(stdout, Logging.Debug)
 default_logger = global_logger()
-
 global_logger(debug_logger)
 
 template = SimulationTemplate(ENV["WATER_ROOT"], Day, Hour)
@@ -44,33 +45,24 @@ template = SimulationTemplate(ENV["WATER_ROOT"], Day, Hour)
 
         @time @test fetch(task1) == 1
         @time @test fetch(task2) == 2
-        
-        #=
-        runner_vec = [replacer, restarter, collector1, collector2]
-        # runner_vec = [replacer, restarter, collector1, collector2, collector1, collector2]
-
-        run_simulation!(runner_vec) do res_vec
-            # TODO: async @test is not counted?
-            @test length(runner_vec) == length(res_vec)
-            for res in res_vec
-                @test isdir(res.dir_completed)
-                push!(dir_completed_vec, res.dir_completed)
-            end
-        end
-        =#
 
         @test !isdir(dir_completed_vec[1]) && !isdir(dir_completed_vec[2])
     end
 
     @testset "auto_step" begin
+        
+        collector0 = Collector(replacer, [WQWCRST_OUT])
 
-        collector = Collector{Restarter}(Collector(replacer))
+        @test !(WQWCRST_OUT in keys(collector0))
 
-        @test isempty(collector.stats_running)
+        collector1 = Collector{Restarter}(collector0)
 
-        collector2 = Collector{Restarter}(collector)
+        @test WQWCRST_OUT in keys(collector0)
+        @test isempty(collector1.stats_running)
 
-        @test !isempty(collector.stats_running)
+        collector2 = Collector{Restarter}(collector1)
+
+        @test !isempty(collector1.stats_running)
         @test isempty(collector2.stats_running)
     end
 end

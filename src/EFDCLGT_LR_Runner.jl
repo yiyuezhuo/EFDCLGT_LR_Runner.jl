@@ -6,7 +6,7 @@ export run_simulation!, Collector, cleanup
 
 using EFDCLGT_LR_Files
 using EFDCLGT_LR_Files: RunnerFunc, RunnerStateful, name
-import EFDCLGT_LR_Files: create_simulation, parent, Restarter
+import EFDCLGT_LR_Files: create_simulation, parent, Restarter, Replacer, master_map
 
 import ProgressMeter
 
