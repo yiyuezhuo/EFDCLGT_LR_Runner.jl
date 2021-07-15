@@ -22,10 +22,10 @@ parent(c::Collector) = c.runner
 
 is_over(c::Collector) = !isempty(c.stats_running)
 
-create_simulation(collector::Collector, target=tempname()) = create_simulation(collector.runner, target)
-_run_simulation!(collector::Collector, target=tempname()) = _run_simulation!(collector.runner, target)
+create_simulation(collector::Collector, target=efdc_lp_tempname()) = create_simulation(collector.runner, target)
+_run_simulation!(collector::Collector, target=efdc_lp_tempname()) = _run_simulation!(collector.runner, target)
 
-function run_simulation!(collector::Collector, target=tempname())
+function run_simulation!(collector::Collector, target=efdc_lp_tempname())
     res = run_simulation!(collector.runner, target)
     merge!(collector.stats_running, res.stats_running)
     for ftype in collector.collect_vec

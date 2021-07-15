@@ -95,7 +95,7 @@ target is expected to be "empty", and a environment will be created in it.
 To run simulation only, refer to `_run_simulation!`. As the `_` shows, 
 this way is not recommended as it will not save the resumable state. 
 """
-function run_simulation!(runner::Runner, target=tempname())
+function run_simulation!(runner::Runner, target=efdc_lp_tempname())
     create_simulation(runner, target)
     return _run_simulation!(runner, target)
 end

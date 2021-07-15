@@ -6,7 +6,6 @@ using EFDCLGT_LR_Files: name
 using EFDCLGT_LR_Runner
 using Logging
 using Dates
-using Statistics
 
 debug_logger = SimpleLogger(stdout, Logging.Debug)
 default_logger = global_logger()
