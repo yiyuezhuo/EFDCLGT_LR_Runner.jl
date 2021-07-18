@@ -60,7 +60,7 @@ there're three possible result:
 * The program started but for some reason failed to read input files, then it is catched by ModelRunningFailed. The function will try to restart it until MAX_QUOTA is reached. 
 * The program started and exited with "regular" output, so the disk files it leaves and shell output is valid and can be fetched.
 """
-function _run_simulation!(template::AbstractSimulationTemplate, target)
+function __run_simulation!(template::AbstractSimulationTemplate, target)
     exe_p = get_exe_path(template)
     cmd = setenv(`$exe_p`, dir=target)
     @debug "Run $cmd"
@@ -80,6 +80,12 @@ function _run_simulation!(template::AbstractSimulationTemplate, target)
             rethrow(err)
         end
     end
+end
+
+function _run_simulation!(template::AbstractSimulationTemplate, target)
+    task = @task __run_simulation!(template, target)
+    schedule(default_async_throttle_ref[], task)
+    return fetch(task)
 end
 
 _run_simulation!(replacer::Replacer, target) = _run_simulation!(replacer.template, target)
