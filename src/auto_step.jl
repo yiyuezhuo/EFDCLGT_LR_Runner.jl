@@ -32,9 +32,18 @@ function Collector{Restarter}(collector_vec::Vector{<:Collector})
 
     @assert !any(is_over.(collector_vec))
 
+    task_vec = map(collector_vec) do collector
+        return @async Collector{Restarter}(collector)
+    end
+
+    return fetch.(task_vec)
+
+    #=
+
     res_vec = run_simulation!(collector_vec)
     replacer_backbone_vec = set_restarting!.(copy_replacer.(collector_vec), true) .|> add_begin_day!
     restarter_vec = Restarter.(replacer_backbone_vec, getfield.(res_vec, :dir_completed))
 
     return Collector.(restarter_vec, getfield.(collector_vec, :collect_vec))
+    =#
 end

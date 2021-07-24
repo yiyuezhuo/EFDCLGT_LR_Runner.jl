@@ -50,3 +50,28 @@ function Base.copy(c::Collector)
     @assert isempty(c.stats_running)
     Collector(copy(c.runner), copy(c.collect_vec))
 end
+
+"""
+Used to append restarting optimized running.
+"""
+function Base.append!(collector::Collector, collector_append::Collector)
+    @assert is_over(collector_append)
+    @assert collector.collect_vec == collector_append.collect_vec
+
+    for key in collector.collect_vec
+        if !(key in keys(collector._result_map))
+            collector[key] = deepcopy(collector_append[key])
+        else
+            append!(collector[key], collector_append[key])
+        end
+    end
+
+    # "effortless" append! for stats_running
+    if isempty(collector.stats_running)
+        merge!(collector.stats_running, collector_append.stats_running)
+    else
+        for key in keys(collector.stats_running)
+            collector.stats_running[key] += collector_append.stats_running[key]
+        end
+    end
+end
